@@ -37,10 +37,10 @@ const chartOptions = {
 </script>
 
 <template>
-  <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+  <section class="surface p-5">
     <div class="mb-4">
-      <h2 class="text-lg font-bold text-slate-950">Languages</h2>
-      <p class="text-sm text-slate-500">Top languages by repository count</p>
+      <h2 class="title-lg">Languages</h2>
+      <p class="muted mt-1 text-sm">Top languages by repository count</p>
     </div>
 
     <div class="h-72">

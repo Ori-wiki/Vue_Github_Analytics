@@ -8,12 +8,14 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
-import type { CommitStat } from '../../types/github'
+import type { AppStatus, CommitStat } from '../../types/github'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip)
 
 const props = defineProps<{
   commits: CommitStat[]
+  hasEvents: boolean
+  eventsStatus: AppStatus
 }>()
 
 const chartData = computed(() => ({
@@ -23,7 +25,7 @@ const chartData = computed(() => ({
       label: 'Commits',
       data: props.commits.map((item) => item.commits),
       backgroundColor: '#2563eb',
-      borderRadius: 4,
+      borderRadius: 5,
       maxBarThickness: 22,
     },
   ],
@@ -62,15 +64,26 @@ const chartOptions = {
 </script>
 
 <template>
-  <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+  <section class="surface p-5">
     <div class="mb-4">
-      <h2 class="text-lg font-bold text-slate-950">Commits</h2>
-      <p class="text-sm text-slate-500">Push activity by repository</p>
+      <h2 class="title-lg">Commits</h2>
+      <p class="muted mt-1 text-sm">Push activity by repository</p>
     </div>
 
     <div class="h-72">
       <Bar v-if="commits.length" :data="chartData" :options="chartOptions" />
-      <div v-else class="grid h-full place-items-center text-sm text-slate-500">No public push events</div>
+      <div v-else-if="eventsStatus === 'rate-limit'" class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Коммиты временно недоступны из-за лимита GitHub API.
+      </div>
+      <div v-else-if="eventsStatus === 'network-error'" class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Не удалось загрузить коммиты из-за ошибки сети.
+      </div>
+      <div v-else-if="!hasEvents" class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Нет public events. Коммиты нельзя оценить по публичной активности.
+      </div>
+      <div v-else class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Public events есть, но push events с коммитами не найдены.
+      </div>
     </div>
   </section>
 </template>

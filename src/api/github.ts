@@ -35,6 +35,11 @@ export async function getGithubRepositories(username: string) {
   return data
 }
 
+export async function getGithubRepository(owner: string, repo: string) {
+  const { data } = await github.get<GithubRepository>(`/repos/${owner}/${repo}`)
+  return data
+}
+
 export async function getGithubEvents(username: string) {
   const { data } = await github.get<GithubEvent[]>(`/users/${username}/events/public`, {
     params: {

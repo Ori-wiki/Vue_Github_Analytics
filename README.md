@@ -9,6 +9,7 @@ Vue 3 + TypeScript + Vite template for a GitHub analytics dashboard.
 - Vite
 - Tailwind CSS 4
 - Pinia for state management
+- Vue Router for shareable routes
 - Axios for GitHub REST API
 - Chart.js + vue-chartjs for charts
 - Vitest + Vue Test Utils + jsdom for tests
@@ -22,10 +23,13 @@ Vue 3 + TypeScript + Vite template for a GitHub analytics dashboard.
 - Search by GitHub username
 - Profile metrics: repositories, stars, followers, following
 - Repository table with search, language filter and sorting
+- Repository detail page at `/repositories/:owner/:repo`
 - Language distribution chart
 - Recent public activity chart
 - Commit chart from public push events
-- Basic user comparison
+- Strong user comparison at `/compare/:username/:compareUsername`
+- Shareable user pages at `/user/:username`
+- Export visible repositories as JSON or CSV
 - Optional GitHub token support through `.env`
 
 ## Run

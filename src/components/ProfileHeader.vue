@@ -11,19 +11,21 @@ defineProps<{
 </script>
 
 <template>
-  <section class="grid gap-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[1.4fr_1fr]">
+  <section class="surface grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.35fr_1fr]">
     <div class="flex flex-col gap-5 sm:flex-row">
-      <img
-        class="size-24 rounded-lg border border-slate-200 object-cover"
-        :alt="`${user.login} avatar`"
-        :src="user.avatar_url"
-      />
+      <div class="w-fit rounded-lg border border-slate-200 bg-slate-50 p-2">
+        <img
+          class="size-24 rounded-md object-cover"
+          :alt="`${user.login} avatar`"
+          :src="user.avatar_url"
+        />
+      </div>
 
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-3">
-          <h1 class="text-3xl font-bold text-slate-950">{{ user.name ?? user.login }}</h1>
+          <h1 class="text-3xl font-black leading-none text-slate-950">{{ user.name ?? user.login }}</h1>
           <a
-            class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-sm font-medium text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
+            class="btn-secondary h-9 px-3"
             :href="user.html_url"
             rel="noreferrer"
             target="_blank"
@@ -33,21 +35,21 @@ defineProps<{
           </a>
         </div>
 
-        <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+        <p class="muted mt-4 max-w-2xl text-sm leading-6">
           {{ user.bio ?? 'No bio yet.' }}
         </p>
 
-        <div class="mt-4 flex flex-wrap gap-3 text-sm text-slate-500">
-          <span v-if="user.company" class="inline-flex items-center gap-1">
-            <Building2 class="size-4" />
+        <div class="mt-5 flex flex-wrap gap-2 text-sm text-slate-600">
+          <span v-if="user.company" class="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 font-medium">
+            <Building2 class="size-4 text-slate-500" />
             {{ user.company }}
           </span>
-          <span v-if="user.location" class="inline-flex items-center gap-1">
-            <MapPin class="size-4" />
+          <span v-if="user.location" class="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 font-medium">
+            <MapPin class="size-4 text-slate-500" />
             {{ user.location }}
           </span>
-          <span class="inline-flex items-center gap-1">
-            <Users class="size-4" />
+          <span class="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 font-medium">
+            <Users class="size-4 text-slate-500" />
             {{ formatNumber(user.followers) }} followers
           </span>
         </div>
@@ -55,21 +57,21 @@ defineProps<{
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Repositories</p>
-        <p class="mt-2 text-2xl font-bold text-slate-950">{{ formatNumber(repositories) }}</p>
+      <div class="stat-tile">
+        <p class="metric-label">Repositories</p>
+        <p class="metric-value">{{ formatNumber(repositories) }}</p>
       </div>
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Stars</p>
-        <p class="mt-2 text-2xl font-bold text-slate-950">{{ formatNumber(stars) }}</p>
+      <div class="stat-tile">
+        <p class="metric-label">Stars</p>
+        <p class="metric-value">{{ formatNumber(stars) }}</p>
       </div>
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Following</p>
-        <p class="mt-2 text-2xl font-bold text-slate-950">{{ formatNumber(user.following) }}</p>
+      <div class="stat-tile">
+        <p class="metric-label">Following</p>
+        <p class="metric-value">{{ formatNumber(user.following) }}</p>
       </div>
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Joined</p>
-        <p class="mt-2 text-sm font-semibold text-slate-950">{{ formatDateDistance(user.created_at) }}</p>
+      <div class="stat-tile">
+        <p class="metric-label">Joined</p>
+        <p class="mt-2 text-sm font-extrabold text-slate-950">{{ formatDateDistance(user.created_at) }}</p>
       </div>
     </div>
   </section>

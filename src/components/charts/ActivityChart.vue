@@ -8,12 +8,14 @@ import {
   Tooltip,
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
-import type { ContributionDay } from '../../types/github'
+import type { AppStatus, ContributionDay } from '../../types/github'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip)
 
 const props = defineProps<{
   contributions: ContributionDay[]
+  hasEvents: boolean
+  eventsStatus: AppStatus
 }>()
 
 const chartData = computed(() => ({
@@ -22,8 +24,8 @@ const chartData = computed(() => ({
     {
       label: 'Activity',
       data: props.contributions.map((item) => item.count),
-      backgroundColor: '#10b981',
-      borderRadius: 4,
+      backgroundColor: '#059669',
+      borderRadius: 5,
       maxBarThickness: 18,
     },
   ],
@@ -64,14 +66,23 @@ const chartOptions = {
 </script>
 
 <template>
-  <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+  <section class="surface p-5">
     <div class="mb-4">
-      <h2 class="text-lg font-bold text-slate-950">Contribution chart</h2>
-      <p class="text-sm text-slate-500">Estimated from recent public events</p>
+      <h2 class="title-lg">Contribution chart</h2>
+      <p class="muted mt-1 text-sm">Estimated from recent public events</p>
     </div>
 
     <div class="h-72">
-      <Bar :data="chartData" :options="chartOptions" />
+      <Bar v-if="hasEvents" :data="chartData" :options="chartOptions" />
+      <div v-else-if="eventsStatus === 'rate-limit'" class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Public events временно недоступны из-за лимита GitHub API.
+      </div>
+      <div v-else-if="eventsStatus === 'network-error'" class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Не удалось загрузить public events из-за ошибки сети.
+      </div>
+      <div v-else class="grid h-full place-items-center text-center text-sm text-slate-500">
+        Нет public events. GitHub не вернул публичную активность для этого пользователя.
+      </div>
     </div>
   </section>
 </template>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { GitCompareArrows } from '@lucide/vue'
-import type { GithubUser } from '../types/github'
+import type { ComparisonProfile } from '../types/github'
 import { formatNumber } from '../utils/format'
 
-defineProps<{
-  baseUser: GithubUser
-  compareUser: GithubUser | null
+const props = defineProps<{
+  baseProfile: ComparisonProfile | null
+  compareProfile: ComparisonProfile | null
 }>()
 
 const model = defineModel<string>({ required: true })
@@ -13,61 +14,116 @@ const model = defineModel<string>({ required: true })
 defineEmits<{
   compare: []
 }>()
+
+const rows = computed(() => {
+  if (!props.baseProfile || !props.compareProfile) {
+    return []
+  }
+
+  return [
+    createNumericRow('Total stars', props.baseProfile.totalStars, props.compareProfile.totalStars),
+    createNumericRow('Followers', props.baseProfile.followers, props.compareProfile.followers),
+    createNumericRow('Repos', props.baseProfile.repos, props.compareProfile.repos),
+    createTextRow(
+      'Top language',
+      props.baseProfile.topLanguage,
+      props.compareProfile.topLanguage,
+      props.baseProfile.topLanguageRepos,
+      props.compareProfile.topLanguageRepos,
+    ),
+    createNumericRow('Average stars per repo', props.baseProfile.averageStars, props.compareProfile.averageStars, true),
+    createTextRow(
+      'Most active day',
+      props.baseProfile.mostActiveDay,
+      props.compareProfile.mostActiveDay,
+      props.baseProfile.mostActiveDayScore,
+      props.compareProfile.mostActiveDayScore,
+    ),
+  ]
+})
+
+function createNumericRow(label: string, left: number, right: number, decimal = false) {
+  return {
+    label,
+    left: decimal ? left.toFixed(1) : formatNumber(left),
+    right: decimal ? right.toFixed(1) : formatNumber(right),
+    winner: getWinner(left, right),
+  }
+}
+
+function createTextRow(label: string, left: string, right: string, leftScore: number, rightScore: number) {
+  return {
+    label,
+    left,
+    right,
+    winner: getWinner(leftScore, rightScore),
+  }
+}
+
+function getWinner(left: number, right: number) {
+  if (left === right) {
+    return 'Tie'
+  }
+
+  return left > right ? 'User A' : 'User B'
+}
 </script>
 
 <template>
-  <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+  <section class="surface p-5">
     <div class="mb-4 flex items-center justify-between gap-3">
       <div>
-        <h2 class="text-lg font-bold text-slate-950">Compare users</h2>
-        <p class="text-sm text-slate-500">Quick profile-level comparison</p>
+        <h2 class="title-lg">User A vs User B</h2>
+        <p class="muted mt-1 text-sm">Compare profile, repository and activity metrics</p>
       </div>
-      <GitCompareArrows class="size-5 text-emerald-600" />
+      <div class="grid size-10 place-items-center rounded-md bg-emerald-50 text-emerald-700">
+        <GitCompareArrows class="size-5" />
+      </div>
     </div>
 
     <form class="flex gap-2" @submit.prevent="$emit('compare')">
       <input
         v-model="model"
-        class="h-11 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+        class="control min-w-0 flex-1 px-3 text-sm"
         placeholder="another username"
         type="search"
       />
-      <button class="h-11 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700">
+      <button class="btn-primary">
         Compare
       </button>
     </form>
 
-    <div class="mt-5 grid gap-3 sm:grid-cols-2">
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-sm font-semibold text-slate-950">@{{ baseUser.login }}</p>
-        <dl class="mt-3 space-y-2 text-sm text-slate-600">
-          <div class="flex justify-between gap-4">
-            <dt>Followers</dt>
-            <dd class="font-semibold">{{ formatNumber(baseUser.followers) }}</dd>
-          </div>
-          <div class="flex justify-between gap-4">
-            <dt>Repos</dt>
-            <dd class="font-semibold">{{ formatNumber(baseUser.public_repos) }}</dd>
-          </div>
-        </dl>
-      </div>
-
-      <div class="rounded-md border border-slate-200 p-4">
-        <p class="text-sm font-semibold text-slate-950">
-          {{ compareUser ? `@${compareUser.login}` : 'Second user' }}
-        </p>
-        <dl v-if="compareUser" class="mt-3 space-y-2 text-sm text-slate-600">
-          <div class="flex justify-between gap-4">
-            <dt>Followers</dt>
-            <dd class="font-semibold">{{ formatNumber(compareUser.followers) }}</dd>
-          </div>
-          <div class="flex justify-between gap-4">
-            <dt>Repos</dt>
-            <dd class="font-semibold">{{ formatNumber(compareUser.public_repos) }}</dd>
-          </div>
-        </dl>
-        <p v-else class="mt-3 text-sm text-slate-500">Enter a username to compare.</p>
-      </div>
+    <div v-if="baseProfile && compareProfile" class="mt-5 overflow-x-auto rounded-md border border-slate-200">
+      <table class="min-w-full text-left text-sm">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th class="px-4 py-3 font-semibold">Metric</th>
+            <th class="px-4 py-3 font-semibold">@{{ baseProfile.username }}</th>
+            <th class="px-4 py-3 font-semibold">@{{ compareProfile.username }}</th>
+            <th class="px-4 py-3 font-semibold">Winner</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <tr v-for="row in rows" :key="row.label">
+            <td class="px-4 py-3 font-semibold text-slate-950">{{ row.label }}</td>
+            <td class="px-4 py-3 text-slate-600">{{ row.left }}</td>
+            <td class="px-4 py-3 text-slate-600">{{ row.right }}</td>
+            <td class="px-4 py-3">
+              <span
+                class="rounded-md px-2 py-1 text-xs font-semibold"
+                :class="{
+                  'bg-emerald-50 text-emerald-700': row.winner === 'User A' || row.winner === 'User B',
+                  'bg-slate-100 text-slate-600': row.winner === 'Tie',
+                }"
+              >
+                {{ row.winner }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+
+    <p v-else class="mt-5 text-sm text-slate-500">Enter a second username to compare.</p>
   </section>
 </template>

@@ -1,9 +1,11 @@
 import { format, subDays } from 'date-fns'
 import type {
   CommitStat,
+  ComparisonProfile,
   ContributionDay,
   GithubEvent,
   GithubRepository,
+  GithubUser,
   LanguageStat,
   SortMode,
 } from '../types/github'
@@ -60,6 +62,44 @@ export function getCommitStats(events: GithubEvent[]): CommitStat[] {
   return Array.from(map, ([repo, commits]) => ({ repo, commits }))
     .sort((a, b) => b.commits - a.commits)
     .slice(0, 8)
+}
+
+export function getMostActiveDay(events: GithubEvent[]) {
+  const dayCounts = new Map<string, number>()
+
+  for (const event of events) {
+    const day = format(new Date(event.created_at), 'EEEE')
+    dayCounts.set(day, (dayCounts.get(day) ?? 0) + getEventWeight(event))
+  }
+
+  const [day, score] = Array.from(dayCounts.entries()).sort((a, b) => b[1] - a[1])[0] ?? [
+    'No activity',
+    0,
+  ]
+
+  return { day, score }
+}
+
+export function getComparisonProfile(
+  user: GithubUser,
+  repositories: GithubRepository[],
+  events: GithubEvent[],
+): ComparisonProfile {
+  const totalStars = getTotalStars(repositories)
+  const topLanguage = getLanguageStats(repositories)[0]
+  const mostActiveDay = getMostActiveDay(events)
+
+  return {
+    username: user.login,
+    totalStars,
+    followers: user.followers,
+    repos: repositories.length,
+    topLanguage: topLanguage?.name ?? 'No data',
+    topLanguageRepos: topLanguage?.repositories ?? 0,
+    averageStars: repositories.length ? totalStars / repositories.length : 0,
+    mostActiveDay: mostActiveDay.day,
+    mostActiveDayScore: mostActiveDay.score,
+  }
 }
 
 export function filterRepositories(
