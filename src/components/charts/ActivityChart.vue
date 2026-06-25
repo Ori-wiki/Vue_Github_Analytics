@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  LinearScale,
-  Tooltip,
-} from 'chart.js'
+import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js'
 import { Bar } from 'vue-chartjs'
 import type { AppStatus, ContributionDay } from '../../types/github'
 import type { AnalyticsSource } from '../../stores/githubAnalytics'
@@ -44,9 +38,7 @@ const chartOptions = {
   maintainAspectRatio: false,
   scales: {
     x: {
-      grid: {
-        display: false,
-      },
+      grid: { display: false },
       ticks: {
         color: '#64748b',
         maxRotation: 0,
@@ -56,19 +48,12 @@ const chartOptions = {
     },
     y: {
       beginAtZero: true,
-      grid: {
-        color: '#334155',
-      },
-      ticks: {
-        color: '#64748b',
-        precision: 0,
-      },
+      grid: { color: '#334155' },
+      ticks: { color: '#64748b', precision: 0 },
     },
   },
   plugins: {
-    tooltip: {
-      displayColors: false,
-    },
+    tooltip: { displayColors: false },
   },
 }
 </script>
@@ -91,13 +76,13 @@ const chartOptions = {
     <div class="h-72">
       <Bar v-if="hasEvents" :data="chartData" :options="chartOptions" />
       <div v-else-if="eventsStatus === 'rate-limit'" class="grid h-full place-items-center text-center text-sm text-slate-500">
-        Public events временно недоступны из-за лимита GitHub API.
+        Public events are temporarily unavailable because the GitHub API limit was reached.
       </div>
       <div v-else-if="eventsStatus === 'network-error'" class="grid h-full place-items-center text-center text-sm text-slate-500">
-        Не удалось загрузить public events из-за ошибки сети.
+        Could not load public events because of a network error.
       </div>
       <div v-else class="grid h-full place-items-center text-center text-sm text-slate-500">
-        Нет public events. Для точного contribution calendar добавь GitHub token.
+        No public events. Add a GitHub token for the official contribution calendar.
       </div>
     </div>
   </section>

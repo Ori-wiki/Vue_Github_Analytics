@@ -2,11 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Star } from '@lucide/vue'
-import { getGithubOrganization, getGithubOrganizationRepositories } from '../api/github'
 import LanguageChart from '../components/charts/LanguageChart.vue'
 import RepositoryTable from '../components/RepositoryTable.vue'
 import StateNotice from '../components/StateNotice.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
+import { fetchGithubOrganization, fetchGithubOrganizationRepositories } from '../queries/githubQueries'
 import type { AppStatus, GithubOrganization, GithubRepository, RepoFilters } from '../types/github'
 import { filterRepositoriesAdvanced, getLanguageStats, getTotalStars } from '../utils/analytics'
 import { formatNumber } from '../utils/format'
@@ -49,8 +49,8 @@ async function loadOrganization() {
 
   try {
     const [profile, repos] = await Promise.all([
-      getGithubOrganization(orgLogin.value),
-      getGithubOrganizationRepositories(orgLogin.value),
+      fetchGithubOrganization(orgLogin.value),
+      fetchGithubOrganizationRepositories(orgLogin.value),
     ])
 
     organization.value = profile

@@ -1,12 +1,13 @@
 import { computed, ref } from 'vue'
 import {
-  getGithubCommits,
-  getGithubContributors,
-  getGithubIssues,
-  getGithubReadme,
-  getGithubReleases,
-  getGithubRepository,
-} from '../api/github'
+  fetchGithubCommits,
+  fetchGithubContributors,
+  fetchGithubIssues,
+  fetchGithubReadme,
+  fetchGithubReleases,
+  fetchGithubRepository,
+  fetchGithubWorkflowRuns,
+} from '../queries/githubQueries'
 import type {
   AppStatus,
   GithubCommit,
@@ -15,6 +16,7 @@ import type {
   GithubReadme,
   GithubRelease,
   GithubRepository,
+  GithubWorkflowRun,
 } from '../types/github'
 import { getGithubErrorStatus, getStatusMessage } from '../utils/githubErrors'
 
@@ -24,9 +26,12 @@ export function useRepositoryDetail() {
   const releases = ref<GithubRelease[]>([])
   const contributors = ref<GithubContributor[]>([])
   const issues = ref<GithubIssue[]>([])
+  const commits = ref<GithubCommit[]>([])
   const latestCommit = ref<GithubCommit | null>(null)
+  const workflowRuns = ref<GithubWorkflowRun[]>([])
   const status = ref<AppStatus>('idle')
   const dataWarning = ref('')
+  let requestId = 0
 
   const error = computed(() => getStatusMessage(status.value))
   const readmePreview = computed(() => decodeReadme(readme.value).slice(0, 1200))
@@ -54,37 +59,57 @@ export function useRepositoryDetail() {
       return
     }
 
+    const currentRequestId = ++requestId
     status.value = 'loading'
     dataWarning.value = ''
 
     try {
-      repository.value = await getGithubRepository(owner, repo)
+      repository.value = await fetchGithubRepository(owner, repo)
+
+      if (currentRequestId !== requestId) {
+        return
+      }
+
       status.value = 'ready'
     } catch (unknownError) {
+      if (currentRequestId !== requestId) {
+        return
+      }
+
       repository.value = null
       status.value = getGithubErrorStatus(unknownError)
       return
     }
 
-    const [readmeResult, releasesResult, contributorsResult, issuesResult, commitsResult] =
+    const [readmeResult, releasesResult, contributorsResult, issuesResult, commitsResult, workflowsResult] =
       await Promise.allSettled([
-        getGithubReadme(owner, repo),
-        getGithubReleases(owner, repo),
-        getGithubContributors(owner, repo),
-        getGithubIssues(owner, repo),
-        getGithubCommits(owner, repo),
+        fetchGithubReadme(owner, repo),
+        fetchGithubReleases(owner, repo),
+        fetchGithubContributors(owner, repo),
+        fetchGithubIssues(owner, repo),
+        fetchGithubCommits(owner, repo),
+        fetchGithubWorkflowRuns(owner, repo),
       ])
+
+    if (currentRequestId !== requestId) {
+      return
+    }
 
     readme.value = readmeResult.status === 'fulfilled' ? readmeResult.value : null
     releases.value = releasesResult.status === 'fulfilled' ? releasesResult.value : []
     contributors.value = contributorsResult.status === 'fulfilled' ? contributorsResult.value : []
     issues.value = issuesResult.status === 'fulfilled' ? issuesResult.value : []
-    latestCommit.value = commitsResult.status === 'fulfilled' ? commitsResult.value[0] ?? null : null
+    commits.value = commitsResult.status === 'fulfilled' ? commitsResult.value : []
+    latestCommit.value = commits.value[0] ?? null
+    workflowRuns.value = workflowsResult.status === 'fulfilled' ? workflowsResult.value : []
 
-    if ([readmeResult, releasesResult, contributorsResult, issuesResult, commitsResult].some(
-      (result) => result.status === 'rejected',
-    )) {
-      dataWarning.value = 'Часть данных репозитория временно недоступна из-за лимита API или настроек репозитория.'
+    if (
+      [readmeResult, releasesResult, contributorsResult, issuesResult, commitsResult, workflowsResult].some(
+        (result) => result.status === 'rejected',
+      )
+    ) {
+      dataWarning.value =
+        'Часть данных репозитория временно недоступна из-за лимита API или настроек репозитория.'
     }
   }
 
@@ -95,8 +120,10 @@ export function useRepositoryDetail() {
     releases,
     contributors,
     issues,
+    commits,
     issuesByLabel,
     latestCommit,
+    workflowRuns,
     status,
     error,
     dataWarning,

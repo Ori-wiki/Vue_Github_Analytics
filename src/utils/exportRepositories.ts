@@ -55,3 +55,7 @@ function downloadFile(filename: string, content: string, type: string) {
 export function exportJsonFile(filename: string, data: unknown) {
   downloadFile(filename, JSON.stringify(data, null, 2), 'application/json')
 }
+
+export function exportHtmlFile(filename: string, html: string) {
+  downloadFile(filename, html, 'text/html')
+}

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Activity, GitFork, HeartPulse, Star } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { routeNames } from '../router/routes'
 import type { AppStatus, GithubRepository, RepoFilters } from '../types/github'
 import { formatDateDistance, formatNumber } from '../utils/format'
 import { getRepositoryHealth } from '../utils/analytics'
 
-defineProps<{
+const props = defineProps<{
   repositories: GithubRepository[]
   languages: string[]
   totalRepositories: number
@@ -15,6 +16,7 @@ defineProps<{
 }>()
 
 const filters = defineModel<RepoFilters>('filters', { required: true })
+const tableScrollRef = ref<HTMLElement | null>(null)
 
 const updatedOptions = [
   { label: 'Any time', value: 'all' },
@@ -30,15 +32,24 @@ const selectedLanguages = computed({
   },
 })
 
+const virtualizerOptions = computed(() => ({
+  count: props.repositories.length,
+  getScrollElement: () => tableScrollRef.value,
+  estimateSize: () => 96,
+  overscan: 8,
+}))
+
+const rowVirtualizer = useVirtualizer(virtualizerOptions)
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
 function getRepositoryRoute(repository: GithubRepository) {
   const [owner, repo] = repository.full_name.split('/')
 
   return {
     name: routeNames.repositoryDetail,
-    params: {
-      owner,
-      repo,
-    },
+    params: { owner, repo },
   }
 }
 
@@ -53,20 +64,8 @@ function toggleLanguage(language: string) {
   <section class="surface overflow-hidden">
     <div class="space-y-4 border-b border-slate-200 bg-white p-5">
       <div class="grid gap-3 lg:grid-cols-[1fr_140px_160px_160px_160px]">
-        <input
-          v-model="filters.search"
-          class="control px-3 text-sm"
-          placeholder="Search repositories"
-          type="search"
-        />
-
-        <input
-          v-model.number="filters.minStars"
-          class="control px-3 text-sm"
-          min="0"
-          placeholder="Min stars"
-          type="number"
-        />
+        <input v-model="filters.search" class="control px-3 text-sm" placeholder="Search repositories" type="search" />
+        <input v-model.number="filters.minStars" class="control px-3 text-sm" min="0" placeholder="Min stars" type="number" />
 
         <select v-model="filters.license" class="control px-3 text-sm">
           <option value="all">Any license</option>
@@ -109,9 +108,9 @@ function toggleLanguage(language: string) {
       </div>
     </div>
 
-    <div class="overflow-x-auto">
+    <div ref="tableScrollRef" class="max-h-[720px] overflow-auto">
       <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
-        <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <thead class="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th class="px-5 py-3 font-semibold">Repository</th>
             <th class="px-5 py-3 font-semibold">Health</th>
@@ -122,52 +121,66 @@ function toggleLanguage(language: string) {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="repository in repositories" :key="repository.id" class="align-top transition hover:bg-slate-50">
-            <td class="max-w-md px-5 py-4">
-              <RouterLink
-                class="font-extrabold text-slate-950 transition hover:text-emerald-700"
-                :to="getRepositoryRoute(repository)"
-              >
-                {{ repository.name }}
-              </RouterLink>
-              <p class="mt-1 line-clamp-2 text-slate-500">
-                {{ repository.description ?? 'No description.' }}
-              </p>
-            </td>
-            <td class="px-5 py-4">
-              <span
-                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black"
-                :class="{
-                  'bg-emerald-50 text-emerald-700': getRepositoryHealth(repository).status === 'Healthy',
-                  'bg-amber-50 text-amber-800': getRepositoryHealth(repository).status === 'Stale',
-                  'bg-red-50 text-red-700': getRepositoryHealth(repository).status === 'Needs attention',
-                }"
-                :title="getRepositoryHealth(repository).reasons.join(', ')"
-              >
-                <HeartPulse class="size-3" />
-                {{ getRepositoryHealth(repository).status }}
-                {{ getRepositoryHealth(repository).score }}
-              </span>
-            </td>
-            <td class="px-5 py-4 text-slate-600">{{ repository.language ?? 'Other' }}</td>
-            <td class="px-5 py-4 text-slate-600">
-              <span class="inline-flex items-center gap-1">
-                <Star class="size-4 text-amber-500" />
-                {{ formatNumber(repository.stargazers_count) }}
-              </span>
-            </td>
-            <td class="px-5 py-4 text-slate-600">
-              <span class="inline-flex items-center gap-1">
-                <GitFork class="size-4 text-slate-400" />
-                {{ formatNumber(repository.forks_count) }}
-              </span>
-            </td>
-            <td class="whitespace-nowrap px-5 py-4 text-slate-600">
-              <span class="inline-flex items-center gap-1">
-                <Activity class="size-4 text-slate-400" />
-                {{ formatDateDistance(repository.pushed_at) }}
-              </span>
-            </td>
+          <tr v-if="virtualRows[0]" aria-hidden="true">
+            <td :style="{ height: `${virtualRows[0].start}px` }" colspan="6" />
+          </tr>
+
+          <tr
+            v-for="virtualRow in virtualRows"
+            :key="props.repositories[virtualRow.index].id"
+            class="align-top transition hover:bg-slate-50"
+          >
+            <template v-for="repository in [props.repositories[virtualRow.index]]" :key="repository.id">
+              <td class="max-w-md px-5 py-4">
+                <RouterLink
+                  class="font-extrabold text-slate-950 transition hover:text-emerald-700"
+                  :to="getRepositoryRoute(repository)"
+                >
+                  {{ repository.name }}
+                </RouterLink>
+                <p class="mt-1 line-clamp-2 text-slate-500">
+                  {{ repository.description ?? 'No description.' }}
+                </p>
+              </td>
+              <td class="px-5 py-4">
+                <span
+                  class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black"
+                  :class="{
+                    'bg-emerald-50 text-emerald-700': getRepositoryHealth(repository).status === 'Healthy',
+                    'bg-amber-50 text-amber-800': getRepositoryHealth(repository).status === 'Stale',
+                    'bg-red-50 text-red-700': getRepositoryHealth(repository).status === 'Needs attention',
+                  }"
+                  :title="getRepositoryHealth(repository).reasons.join(', ')"
+                >
+                  <HeartPulse class="size-3" />
+                  {{ getRepositoryHealth(repository).status }}
+                  {{ getRepositoryHealth(repository).score }}
+                </span>
+              </td>
+              <td class="px-5 py-4 text-slate-600">{{ repository.language ?? 'Other' }}</td>
+              <td class="px-5 py-4 text-slate-600">
+                <span class="inline-flex items-center gap-1">
+                  <Star class="size-4 text-amber-500" />
+                  {{ formatNumber(repository.stargazers_count) }}
+                </span>
+              </td>
+              <td class="px-5 py-4 text-slate-600">
+                <span class="inline-flex items-center gap-1">
+                  <GitFork class="size-4 text-slate-400" />
+                  {{ formatNumber(repository.forks_count) }}
+                </span>
+              </td>
+              <td class="whitespace-nowrap px-5 py-4 text-slate-600">
+                <span class="inline-flex items-center gap-1">
+                  <Activity class="size-4 text-slate-400" />
+                  {{ formatDateDistance(repository.pushed_at) }}
+                </span>
+              </td>
+            </template>
+          </tr>
+
+          <tr v-if="virtualRows.length" aria-hidden="true">
+            <td :style="{ height: `${totalSize - (virtualRows[virtualRows.length - 1]?.end ?? 0)}px` }" colspan="6" />
           </tr>
         </tbody>
       </table>

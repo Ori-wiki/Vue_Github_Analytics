@@ -1,7 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import DashboardView from '../views/DashboardView.vue'
-import OrganizationView from '../views/OrganizationView.vue'
-import RepositoryDetailView from '../views/RepositoryDetailView.vue'
 import { routeNames } from './routes'
 
 export const router = createRouter({
@@ -14,22 +11,37 @@ export const router = createRouter({
     {
       path: '/user/:username',
       name: routeNames.user,
-      component: DashboardView,
+      component: () => import('../views/DashboardView.vue'),
+    },
+    {
+      path: '/search',
+      name: routeNames.search,
+      component: () => import('../views/SearchView.vue'),
     },
     {
       path: '/compare/:username/:compareUsername',
       name: routeNames.compare,
-      component: DashboardView,
+      component: () => import('../views/DashboardView.vue'),
+    },
+    {
+      path: '/compare/:username/:compareUsername/report',
+      name: routeNames.compareReport,
+      component: () => import('../views/CompareReportView.vue'),
+    },
+    {
+      path: '/org/compare/:left/:right',
+      name: routeNames.organizationCompare,
+      component: () => import('../views/OrganizationCompareView.vue'),
     },
     {
       path: '/org/:org',
       name: routeNames.organization,
-      component: OrganizationView,
+      component: () => import('../views/OrganizationView.vue'),
     },
     {
       path: '/repositories/:owner/:repo',
       name: routeNames.repositoryDetail,
-      component: RepositoryDetailView,
+      component: () => import('../views/RepositoryDetailView.vue'),
     },
   ],
 })

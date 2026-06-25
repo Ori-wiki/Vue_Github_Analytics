@@ -112,6 +112,53 @@ export type GithubCommit = {
   }
 }
 
+export type GithubWorkflowRun = {
+  id: number
+  name: string | null
+  html_url: string
+  status: string
+  conclusion: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type GithubSearchUserItem = {
+  id: number
+  login: string
+  avatar_url: string
+  html_url: string
+  type: 'User' | 'Organization'
+}
+
+export type GithubSearchRepositoryItem = {
+  id: number
+  name: string
+  full_name: string
+  html_url: string
+  description: string | null
+  language: string | null
+  stargazers_count: number
+  forks_count: number
+  updated_at: string
+  owner: {
+    login: string
+  }
+}
+
+export type GithubSearchResponse<T> = {
+  total_count: number
+  incomplete_results: boolean
+  items: T[]
+}
+
+export type AppErrorCode = 'not-found' | 'rate-limit' | 'network' | 'empty' | 'unknown'
+
+export type AppError = {
+  code: AppErrorCode
+  message: string
+  action?: 'retry' | 'add-token' | 'open-github'
+}
+
 export type GraphqlContributionDay = {
   date: string
   contributionCount: number

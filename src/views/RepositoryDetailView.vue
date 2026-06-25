@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
@@ -13,7 +13,9 @@ import {
   Star,
   Tag,
   Users,
+  Workflow,
 } from '@lucide/vue'
+import RepositoryInsights from '../components/RepositoryInsights.vue'
 import StateNotice from '../components/StateNotice.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import { useRepositoryDetail } from '../composables/useRepositoryDetail'
@@ -27,8 +29,10 @@ const {
   readmePreview,
   releases,
   contributors,
+  commits,
   issuesByLabel,
   latestCommit,
+  workflowRuns,
   status,
   error,
   dataWarning,
@@ -256,11 +260,52 @@ function getRouteParam(key: string) {
             >
               <p class="line-clamp-3 text-sm font-bold text-slate-950">{{ latestCommit.commit.message }}</p>
               <p class="muted mt-2 text-xs">
-                {{ latestCommit.commit.author.name }} · {{ formatDateDistance(latestCommit.commit.author.date) }}
+                {{ latestCommit.commit.author.name }} - {{ formatDateDistance(latestCommit.commit.author.date) }}
               </p>
             </a>
             <p v-else class="text-sm text-slate-500">No commit data.</p>
           </section>
+        </section>
+
+        <RepositoryInsights
+          :commits="commits"
+          :contributors="contributors"
+          :issues-by-label="issuesByLabel"
+          :releases="releases"
+        />
+
+        <section class="surface p-5">
+          <div class="mb-4 flex items-center gap-2">
+            <Workflow class="size-5 text-emerald-600" />
+            <h2 class="title-lg">GitHub Actions / CI status</h2>
+          </div>
+          <div v-if="workflowRuns.length" class="grid gap-3 lg:grid-cols-2">
+            <a
+              v-for="run in workflowRuns"
+              :key="run.id"
+              class="rounded-md border border-slate-200 p-3 transition hover:border-emerald-300"
+              :href="run.html_url"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p class="font-bold text-slate-950">{{ run.name ?? 'Workflow run' }}</p>
+                <span
+                  class="rounded-md px-2 py-1 text-xs font-black"
+                  :class="{
+                    'bg-emerald-50 text-emerald-700': run.conclusion === 'success',
+                    'bg-red-50 text-red-700': run.conclusion === 'failure',
+                    'bg-amber-50 text-amber-800': run.status !== 'completed',
+                    'bg-slate-100 text-slate-700': run.conclusion && run.conclusion !== 'success' && run.conclusion !== 'failure',
+                  }"
+                >
+                  {{ run.conclusion ?? run.status }}
+                </span>
+              </div>
+              <p class="muted mt-2 text-xs">{{ formatDateDistance(run.updated_at) }}</p>
+            </a>
+          </div>
+          <p v-else class="text-sm text-slate-500">No public workflow runs.</p>
         </section>
       </template>
     </div>

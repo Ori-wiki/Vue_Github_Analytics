@@ -10,7 +10,11 @@ import type {
   GithubReadme,
   GithubRelease,
   GithubRepository,
+  GithubSearchRepositoryItem,
+  GithubSearchResponse,
+  GithubSearchUserItem,
   GithubUser,
+  GithubWorkflowRun,
   GraphqlCommitRepositoryStat,
   GraphqlContributionDay,
 } from '../types/github'
@@ -18,9 +22,6 @@ import type {
 type RequestOptions = {
   signal?: AbortSignal
 }
-
-const cacheTtl = 5 * 60 * 1000
-const cache = new Map<string, { expiresAt: number; value: unknown }>()
 
 const github = axios.create({
   baseURL: 'https://api.github.com',
@@ -34,6 +35,14 @@ github.interceptors.request.use((config) => {
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+
+  if (import.meta.env.DEV) {
+    const scenario = localStorage.getItem('msw-scenario')
+
+    if (scenario) {
+      config.headers['x-msw-scenario'] = scenario
+    }
   }
 
   return config
@@ -138,7 +147,43 @@ export async function getGithubCommits(owner: string, repo: string, options: Req
   return cachedGet<GithubCommit[]>(
     `/repos/${owner}/${repo}/commits`,
     {
-      per_page: 1,
+      per_page: 30,
+    },
+    options,
+  )
+}
+
+export async function getGithubWorkflowRuns(owner: string, repo: string, options: RequestOptions = {}) {
+  const data = await cachedGet<{ workflow_runs: GithubWorkflowRun[] }>(
+    `/repos/${owner}/${repo}/actions/runs`,
+    {
+      per_page: 5,
+    },
+    options,
+  )
+
+  return data.workflow_runs
+}
+
+export async function searchGithubUsers(query: string, options: RequestOptions = {}) {
+  return cachedGet<GithubSearchResponse<GithubSearchUserItem>>(
+    '/search/users',
+    {
+      q: query,
+      per_page: 12,
+    },
+    options,
+  )
+}
+
+export async function searchGithubRepositories(query: string, options: RequestOptions = {}) {
+  return cachedGet<GithubSearchResponse<GithubSearchRepositoryItem>>(
+    '/search/repositories',
+    {
+      q: query,
+      per_page: 12,
+      sort: 'stars',
+      order: 'desc',
     },
     options,
   )
@@ -213,7 +258,7 @@ export async function getContributionCalendar(username: string, options: Request
 }
 
 export function clearGithubCache() {
-  cache.clear()
+  // Kept for backward compatibility with older call sites.
 }
 
 async function cachedGet<T>(
@@ -221,26 +266,10 @@ async function cachedGet<T>(
   params?: Record<string, string | number>,
   options: RequestOptions = {},
 ) {
-  const key = createCacheKey(url, params)
-  const cached = cache.get(key)
-
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value as T
-  }
-
   const { data } = await github.get<T>(url, {
     params,
     signal: options.signal,
   })
 
-  cache.set(key, {
-    expiresAt: Date.now() + cacheTtl,
-    value: data,
-  })
-
   return data
-}
-
-function createCacheKey(url: string, params?: Record<string, string | number>) {
-  return `${url}:${JSON.stringify(params ?? {})}:${getGithubToken() ? 'auth' : 'anon'}`
 }

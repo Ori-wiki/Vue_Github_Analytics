@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Command, GitCompareArrows, Search } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -11,11 +11,21 @@ const props = defineProps<{
   repositories: Array<{ name: string; full_name: string }>
 }>()
 
+type PaletteAction = {
+  id: string
+  label: string
+  icon: 'search' | 'compare'
+  run: () => void
+}
+
 const router = useRouter()
 const favoritesStore = useFavoritesStore()
 const { recentProfiles, pinnedProfiles, quickComparePair } = storeToRefs(favoritesStore)
 const isOpen = ref(false)
 const query = ref('')
+const activeIndex = ref(0)
+const inputRef = ref<HTMLInputElement | null>(null)
+const paletteRef = ref<HTMLElement | null>(null)
 
 const profileSuggestions = computed(() => {
   const source = [...pinnedProfiles.value, ...recentProfiles.value]
@@ -30,15 +40,122 @@ const repositorySuggestions = computed(() =>
     .slice(0, 6),
 )
 
-function openPalette(event: KeyboardEvent) {
+const actions = computed<PaletteAction[]>(() => {
+  const normalizedQuery = query.value.trim()
+  const nextActions: PaletteAction[] = [
+    {
+      id: 'search',
+      label: `Search GitHub for ${normalizedQuery || props.currentUsername}`,
+      icon: 'search',
+      run: () => openSearch(normalizedQuery || props.currentUsername),
+    },
+  ]
+
+  if (quickComparePair.value.length === 2) {
+    nextActions.push({
+      id: 'compare',
+      label: `Quick compare @${quickComparePair.value[0]} vs @${quickComparePair.value[1]}`,
+      icon: 'compare',
+      run: openCompare,
+    })
+  }
+
+  for (const profile of profileSuggestions.value) {
+    nextActions.push({
+      id: `profile-${profile}`,
+      label: `Open @${profile}`,
+      icon: 'search',
+      run: () => openUser(profile),
+    })
+  }
+
+  for (const repository of repositorySuggestions.value) {
+    nextActions.push({
+      id: `repo-${repository.full_name}`,
+      label: repository.full_name,
+      icon: 'search',
+      run: () => openRepository(repository.full_name),
+    })
+  }
+
+  return nextActions
+})
+
+watch(isOpen, async (value) => {
+  if (!value) {
+    activeIndex.value = 0
+    return
+  }
+
+  await nextTick()
+  inputRef.value?.focus()
+})
+
+watch(actions, () => {
+  activeIndex.value = Math.min(activeIndex.value, Math.max(actions.value.length - 1, 0))
+})
+
+function handleGlobalKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     isOpen.value = true
   }
+}
 
+function handlePaletteKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    event.preventDefault()
     isOpen.value = false
+    return
   }
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    activeIndex.value = (activeIndex.value + 1) % actions.value.length
+    return
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    activeIndex.value = (activeIndex.value - 1 + actions.value.length) % actions.value.length
+    return
+  }
+
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    actions.value[activeIndex.value]?.run()
+    return
+  }
+
+  if (event.key === 'Tab') {
+    trapFocus(event)
+  }
+}
+
+function trapFocus(event: KeyboardEvent) {
+  const focusable = Array.from(
+    paletteRef.value?.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])') ?? [],
+  )
+
+  if (!focusable.length) {
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function openSearch(value: string) {
+  isOpen.value = false
+  void router.push({ name: routeNames.search, query: { q: value } })
 }
 
 function openUser(username: string) {
@@ -62,71 +179,58 @@ function openCompare() {
   }
 }
 
-function searchUser() {
-  const username = query.value.trim()
-
-  if (username) {
-    openUser(username)
-  }
-}
-
-onMounted(() => window.addEventListener('keydown', openPalette))
-onBeforeUnmount(() => window.removeEventListener('keydown', openPalette))
+onMounted(() => window.addEventListener('keydown', handleGlobalKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleGlobalKeydown))
 </script>
 
 <template>
-  <button class="btn-secondary" type="button" @click="isOpen = true">
+  <button class="btn-secondary" type="button" aria-haspopup="dialog" @click="isOpen = true">
     <Command class="size-4" />
     Ctrl+K
   </button>
 
   <Teleport to="body">
-    <div v-if="isOpen" class="fixed inset-0 z-50 bg-slate-950/50 p-4" @click.self="isOpen = false">
-      <section class="surface mx-auto mt-24 max-w-2xl overflow-hidden">
+    <div
+      v-if="isOpen"
+      class="fixed inset-0 z-50 bg-slate-950/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+      @click.self="isOpen = false"
+      @keydown="handlePaletteKeydown"
+    >
+      <section ref="paletteRef" class="surface mx-auto mt-24 max-w-2xl overflow-hidden">
         <div class="flex items-center gap-3 border-b border-slate-200 p-4">
           <Search class="size-5 text-slate-400" />
           <input
+            ref="inputRef"
             v-model="query"
             class="w-full bg-transparent text-base font-semibold text-slate-950 outline-none"
-            placeholder="Search user, recent profile, repository..."
+            placeholder="Search GitHub, recent profile, repository..."
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-palette-actions"
+            :aria-activedescendant="actions[activeIndex]?.id"
             type="search"
-            @keydown.enter="searchUser"
           />
         </div>
 
-        <div class="max-h-96 overflow-auto p-2">
-          <button class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50" @click="searchUser">
-            <Search class="size-4 text-emerald-600" />
-            <span>Open user {{ query || currentUsername }}</span>
-          </button>
-
+        <div id="command-palette-actions" class="max-h-96 overflow-auto p-2" role="listbox">
           <button
-            v-if="quickComparePair.length === 2"
-            class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"
-            @click="openCompare"
+            v-for="(action, index) in actions"
+            :id="action.id"
+            :key="action.id"
+            class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold"
+            :class="index === activeIndex ? 'bg-slate-100 text-slate-950' : 'hover:bg-slate-50'"
+            role="option"
+            :aria-selected="index === activeIndex"
+            type="button"
+            @mouseenter="activeIndex = index"
+            @click="action.run"
           >
-            <GitCompareArrows class="size-4 text-emerald-600" />
-            <span>Quick compare @{{ quickComparePair[0] }} vs @{{ quickComparePair[1] }}</span>
-          </button>
-
-          <p class="metric-label px-3 pb-1 pt-3">Profiles</p>
-          <button
-            v-for="profile in profileSuggestions"
-            :key="profile"
-            class="flex w-full rounded-md px-3 py-2 text-left text-sm font-semibold hover:bg-slate-50"
-            @click="openUser(profile)"
-          >
-            @{{ profile }}
-          </button>
-
-          <p class="metric-label px-3 pb-1 pt-3">Repositories</p>
-          <button
-            v-for="repository in repositorySuggestions"
-            :key="repository.full_name"
-            class="flex w-full rounded-md px-3 py-2 text-left text-sm font-semibold hover:bg-slate-50"
-            @click="openRepository(repository.full_name)"
-          >
-            {{ repository.full_name }}
+            <GitCompareArrows v-if="action.icon === 'compare'" class="size-4 text-emerald-600" />
+            <Search v-else class="size-4 text-emerald-600" />
+            <span>{{ action.label }}</span>
           </button>
         </div>
       </section>

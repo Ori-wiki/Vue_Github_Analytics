@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { getContributionCalendar, getGithubEvents, getGithubRepositories, getGithubUser } from '../api/github'
+import {
+  fetchContributionCalendar,
+  fetchGithubEvents,
+  fetchGithubRepositories,
+  fetchGithubUser,
+} from '../queries/githubQueries'
 import type {
   AppStatus,
   CommitStat,
@@ -57,8 +62,8 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
   const compareEventsStatus = ref<AppStatus>('idle')
   const dataWarning = ref('')
   const compareError = ref('')
-  let profileController: AbortController | null = null
-  let comparisonController: AbortController | null = null
+  let profileRequestId = 0
+  let comparisonRequestId = 0
 
   const isLoading = computed(() => status.value === 'loading')
   const error = computed(() => getStatusMessage(status.value))
@@ -105,10 +110,7 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       return
     }
 
-    profileController?.abort()
-    profileController = new AbortController()
-    const signal = profileController.signal
-
+    const requestId = ++profileRequestId
     status.value = 'loading'
     repositoriesStatus.value = 'idle'
     eventsStatus.value = 'idle'
@@ -117,7 +119,11 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     graphqlCommitStats.value = []
 
     try {
-      const profile = await getGithubUser(normalizedUsername, { signal })
+      const profile = await fetchGithubUser(normalizedUsername)
+
+      if (requestId !== profileRequestId) {
+        return
+      }
 
       username.value = normalizedUsername
       user.value = profile
@@ -128,7 +134,7 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       status.value = 'ready'
       useFavoritesStore().addRecent(normalizedUsername)
     } catch (unknownError) {
-      if (signal.aborted) {
+      if (requestId !== profileRequestId) {
         return
       }
 
@@ -143,12 +149,12 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     }
 
     const [reposResult, eventsResult, graphqlResult] = await Promise.allSettled([
-      getGithubRepositories(normalizedUsername, { signal }),
-      getGithubEvents(normalizedUsername, { signal }),
-      getContributionCalendar(normalizedUsername, { signal }),
+      fetchGithubRepositories(normalizedUsername),
+      fetchGithubEvents(normalizedUsername),
+      fetchContributionCalendar(normalizedUsername),
     ])
 
-    if (signal.aborted) {
+    if (requestId !== profileRequestId) {
       return
     }
 
@@ -189,23 +195,24 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       return
     }
 
-    comparisonController?.abort()
-    comparisonController = new AbortController()
-    const signal = comparisonController.signal
-
+    const requestId = ++comparisonRequestId
     compareError.value = ''
     compareStatus.value = 'loading'
     compareRepositoriesStatus.value = 'idle'
     compareEventsStatus.value = 'idle'
 
     try {
-      const profile = await getGithubUser(normalizedUsername, { signal })
+      const profile = await fetchGithubUser(normalizedUsername)
+
+      if (requestId !== comparisonRequestId) {
+        return
+      }
 
       compareUsername.value = normalizedUsername
       compareUser.value = profile
       compareStatus.value = 'ready'
     } catch (unknownError) {
-      if (signal.aborted) {
+      if (requestId !== comparisonRequestId) {
         return
       }
 
@@ -218,11 +225,11 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     }
 
     const [reposResult, eventsResult] = await Promise.allSettled([
-      getGithubRepositories(normalizedUsername, { signal }),
-      getGithubEvents(normalizedUsername, { signal }),
+      fetchGithubRepositories(normalizedUsername),
+      fetchGithubEvents(normalizedUsername),
     ])
 
-    if (signal.aborted) {
+    if (requestId !== comparisonRequestId) {
       return
     }
 

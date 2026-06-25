@@ -3,7 +3,9 @@ import { computed, ref } from 'vue'
 import { KeyRound, Trash2 } from '@lucide/vue'
 import { clearGithubCache, getGithubUser } from '../api/github'
 import { getRuntimeGithubToken, saveRuntimeGithubToken } from '../config/env'
+import { clearGithubQueryCache } from '../queries/githubQueries'
 import { useRateLimitStore } from '../stores/rateLimit'
+import { useToastsStore } from '../stores/toasts'
 
 const emit = defineEmits<{
   saved: []
@@ -14,13 +16,16 @@ const isExpanded = ref(!token.value)
 const tokenStatus = ref('')
 const hasToken = computed(() => Boolean(token.value.trim()))
 const rateLimitStore = useRateLimitStore()
+const toastsStore = useToastsStore()
 
 function saveToken() {
   saveRuntimeGithubToken(token.value)
   clearGithubCache()
+  clearGithubQueryCache()
   rateLimitStore.refreshAuthMode()
   isExpanded.value = false
   tokenStatus.value = hasToken.value ? 'Token saved. Run test to verify access.' : 'Token removed.'
+  toastsStore.push(hasToken.value ? 'Token saved' : 'Token removed', tokenStatus.value, 'success')
   emit('saved')
 }
 
@@ -32,14 +37,17 @@ function clearToken() {
 async function testToken() {
   saveRuntimeGithubToken(token.value)
   clearGithubCache()
+  clearGithubQueryCache()
   rateLimitStore.refreshAuthMode()
 
   try {
     await getGithubUser('octocat')
     tokenStatus.value = 'Token works. GraphQL and higher rate limits should be available.'
+    toastsStore.push('Token works', 'Authenticated GitHub API mode is available.', 'success')
     emit('saved')
   } catch {
     tokenStatus.value = 'Token test failed. Check the token value and permissions.'
+    toastsStore.push('Token test failed', tokenStatus.value, 'error')
   }
 }
 </script>
@@ -54,7 +62,8 @@ async function testToken() {
         <div>
           <h2 class="title-lg">GitHub token setup</h2>
           <p class="muted mt-1 text-sm leading-6">
-            Без токена GitHub дает около 60 запросов в час. Токен повышает лимит до 5 000 запросов в час и включает настоящий contribution calendar через GraphQL.
+            Без токена GitHub дает около 60 запросов в час. Токен повышает лимит до 5 000 запросов в час и включает
+            настоящий contribution calendar через GraphQL.
           </p>
         </div>
       </div>
@@ -65,12 +74,7 @@ async function testToken() {
     </div>
 
     <div v-if="isExpanded" class="mt-5 grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
-      <input
-        v-model="token"
-        class="control px-3 text-sm"
-        placeholder="github_pat_..."
-        type="password"
-      />
+      <input v-model="token" class="control px-3 text-sm" placeholder="github_pat_..." type="password" />
       <button class="btn-primary" type="button" @click="saveToken">Save token</button>
       <button class="btn-secondary" type="button" @click="testToken">Test token</button>
       <button class="btn-secondary" type="button" @click="clearToken">
@@ -78,9 +82,13 @@ async function testToken() {
         Clear
       </button>
       <p class="muted lg:col-span-4 text-xs leading-5">
-        Создай fine-grained token в GitHub Settings → Developer settings → Personal access tokens. Для публичных данных достаточно read-only доступа.
+        Создай fine-grained token в GitHub Settings -> Developer settings -> Personal access tokens. Для публичных
+        данных достаточно read-only доступа.
       </p>
-      <p v-if="tokenStatus" class="lg:col-span-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+      <p
+        v-if="tokenStatus"
+        class="lg:col-span-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+      >
         {{ tokenStatus }}
       </p>
     </div>

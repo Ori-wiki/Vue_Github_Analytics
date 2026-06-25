@@ -12,7 +12,7 @@ export const useRateLimitStore = defineStore('rateLimit', () => {
   const tokenVersion = ref(0)
 
   const authMode = computed(() => {
-    tokenVersion.value
+    void tokenVersion.value
     return hasGithubToken() ? 'authenticated' : 'unauthenticated'
   })
   const resetTime = computed(() =>
