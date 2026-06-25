@@ -12,6 +12,7 @@ import {
 } from '@lucide/vue'
 import { getGithubRepository } from '../api/github'
 import StateNotice from '../components/StateNotice.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 import type { AppStatus, GithubRepository } from '../types/github'
 import { formatDateDistance, formatNumber } from '../utils/format'
 import { getGithubErrorStatus, getStatusMessage } from '../utils/githubErrors'
@@ -58,13 +59,16 @@ function getRouteParam(key: string) {
 <template>
   <main class="app-shell">
     <div class="page-wrap flex max-w-5xl flex-col gap-6">
-      <RouterLink
-        class="btn-secondary w-fit"
-        :to="{ name: 'user', params: { username: owner } }"
-      >
-        <ArrowLeft class="size-4" />
-        Back to @{{ owner }}
-      </RouterLink>
+      <div class="flex items-center justify-between gap-3">
+        <RouterLink
+          class="btn-secondary w-fit"
+          :to="{ name: 'user', params: { username: owner } }"
+        >
+          <ArrowLeft class="size-4" />
+          Back to @{{ owner }}
+        </RouterLink>
+        <ThemeToggle />
+      </div>
 
       <div v-if="status === 'loading'" class="surface grid min-h-96 place-items-center">
         <p class="text-sm font-medium text-slate-500">Loading repository...</p>

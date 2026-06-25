@@ -10,6 +10,7 @@ import ProfileHeader from '../components/ProfileHeader.vue'
 import RepositoryTable from '../components/RepositoryTable.vue'
 import SearchBar from '../components/SearchBar.vue'
 import StateNotice from '../components/StateNotice.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 import UserComparison from '../components/UserComparison.vue'
 import { useGithubAnalyticsStore } from '../stores/githubAnalytics'
 import { exportRepositoriesAsCsv, exportRepositoriesAsJson } from '../utils/exportRepositories'
@@ -100,9 +101,12 @@ function navigateToCompare() {
               <p class="text-xs font-semibold text-slate-500">SaaS-style developer intelligence</p>
             </div>
           </div>
-          <p class="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-            Live GitHub API
-          </p>
+          <div class="flex items-center gap-2">
+            <p class="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+              Live GitHub API
+            </p>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div class="grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-end">
