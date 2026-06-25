@@ -39,7 +39,28 @@ const rows = computed(() => {
       props.baseProfile.mostActiveDayScore,
       props.compareProfile.mostActiveDayScore,
     ),
+    createNumericRow('Popularity score', props.baseProfile.popularityScore, props.compareProfile.popularityScore),
+    createNumericRow('Activity score', props.baseProfile.activityScore, props.compareProfile.activityScore),
+    createNumericRow('Maintenance score', props.baseProfile.maintenanceScore, props.compareProfile.maintenanceScore),
+    createNumericRow('Total score', props.baseProfile.totalScore, props.compareProfile.totalScore),
   ]
+})
+
+const winnerSummary = computed(() => {
+  if (!props.baseProfile || !props.compareProfile) {
+    return ''
+  }
+
+  if (props.baseProfile.totalScore === props.compareProfile.totalScore) {
+    return 'Both profiles are evenly matched.'
+  }
+
+  const winner =
+    props.baseProfile.totalScore > props.compareProfile.totalScore
+      ? props.baseProfile.username
+      : props.compareProfile.username
+
+  return `@${winner} wins overall by the combined product score.`
 })
 
 function createNumericRow(label: string, left: number, right: number, decimal = false) {
@@ -94,6 +115,21 @@ function getWinner(left: number, right: number) {
     </form>
 
     <div v-if="baseProfile && compareProfile" class="mt-5 overflow-x-auto rounded-md border border-slate-200">
+      <div class="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+        <div class="surface-soft p-3">
+          <p class="metric-label">@{{ baseProfile.username }}</p>
+          <p class="metric-value">{{ baseProfile.totalScore }}</p>
+        </div>
+        <div class="surface-soft p-3">
+          <p class="metric-label">Summary</p>
+          <p class="mt-2 text-sm font-bold text-slate-950">{{ winnerSummary }}</p>
+        </div>
+        <div class="surface-soft p-3">
+          <p class="metric-label">@{{ compareProfile.username }}</p>
+          <p class="metric-value">{{ compareProfile.totalScore }}</p>
+        </div>
+      </div>
+
       <table class="min-w-full text-left text-sm">
         <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>

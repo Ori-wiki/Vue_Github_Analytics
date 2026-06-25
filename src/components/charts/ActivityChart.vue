@@ -9,6 +9,7 @@ import {
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
 import type { AppStatus, ContributionDay } from '../../types/github'
+import type { AnalyticsSource } from '../../stores/githubAnalytics'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip)
 
@@ -16,15 +17,22 @@ const props = defineProps<{
   contributions: ContributionDay[]
   hasEvents: boolean
   eventsStatus: AppStatus
+  source: AnalyticsSource
 }>()
+
+const subtitle = computed(() =>
+  props.source === 'graphql'
+    ? 'Official GitHub contribution calendar from GraphQL'
+    : 'Estimate from recent public events only',
+)
 
 const chartData = computed(() => ({
   labels: props.contributions.map((item) => item.date.slice(5)),
   datasets: [
     {
-      label: 'Activity',
+      label: props.source === 'graphql' ? 'Contributions' : 'Public activity',
       data: props.contributions.map((item) => item.count),
-      backgroundColor: '#059669',
+      backgroundColor: props.source === 'graphql' ? '#34d399' : '#059669',
       borderRadius: 5,
       maxBarThickness: 18,
     },
@@ -49,7 +57,7 @@ const chartOptions = {
     y: {
       beginAtZero: true,
       grid: {
-        color: '#e2e8f0',
+        color: '#334155',
       },
       ticks: {
         color: '#64748b',
@@ -67,9 +75,17 @@ const chartOptions = {
 
 <template>
   <section class="surface p-5">
-    <div class="mb-4">
-      <h2 class="title-lg">Contribution chart</h2>
-      <p class="muted mt-1 text-sm">Estimated from recent public events</p>
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h2 class="title-lg">Contribution chart</h2>
+        <p class="muted mt-1 text-sm">{{ subtitle }}</p>
+      </div>
+      <span
+        class="rounded-md border px-2 py-1 text-xs font-black"
+        :class="source === 'graphql' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'"
+      >
+        {{ source === 'graphql' ? 'Official' : 'Estimate' }}
+      </span>
     </div>
 
     <div class="h-72">
@@ -81,7 +97,7 @@ const chartOptions = {
         Не удалось загрузить public events из-за ошибки сети.
       </div>
       <div v-else class="grid h-full place-items-center text-center text-sm text-slate-500">
-        Нет public events. GitHub не вернул публичную активность для этого пользователя.
+        Нет public events. Для точного contribution calendar добавь GitHub token.
       </div>
     </div>
   </section>

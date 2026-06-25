@@ -31,6 +31,24 @@ export type GithubRepository = {
   pushed_at: string
   created_at: string
   updated_at: string
+  archived?: boolean
+  license?: {
+    name: string
+    spdx_id: string
+  } | null
+  default_branch?: string
+}
+
+export type GithubOrganization = {
+  login: string
+  avatar_url: string
+  html_url: string
+  name: string | null
+  description: string | null
+  public_repos: number
+  followers: number
+  location: string | null
+  created_at: string
 }
 
 export type GithubEvent = {
@@ -45,6 +63,66 @@ export type GithubEvent = {
       sha: string
       message: string
     }>
+  }
+}
+
+export type GithubReadme = {
+  html_url: string
+  download_url: string | null
+  content: string
+  encoding: string
+}
+
+export type GithubRelease = {
+  id: number
+  name: string | null
+  tag_name: string
+  html_url: string
+  published_at: string | null
+}
+
+export type GithubContributor = {
+  id: number
+  login: string
+  avatar_url: string
+  html_url: string
+  contributions: number
+}
+
+export type GithubIssue = {
+  id: number
+  title: string
+  labels: Array<{
+    id: number
+    name: string
+    color: string
+  }>
+  pull_request?: unknown
+}
+
+export type GithubCommit = {
+  sha: string
+  html_url: string
+  commit: {
+    message: string
+    author: {
+      name: string
+      date: string
+    }
+  }
+}
+
+export type GraphqlContributionDay = {
+  date: string
+  contributionCount: number
+}
+
+export type GraphqlCommitRepositoryStat = {
+  repository: {
+    nameWithOwner: string
+  }
+  contributions: {
+    totalCount: number
   }
 }
 
@@ -66,6 +144,18 @@ export type CommitStat = {
 
 export type SortMode = 'stars' | 'updated' | 'name'
 
+export type RepoHealthStatus = 'Healthy' | 'Stale' | 'Needs attention'
+
+export type RepoFilters = {
+  search: string
+  languages: string[]
+  minStars: number
+  license: 'all' | 'with' | 'without'
+  updatedWithinDays: number | 'all'
+  archived: 'all' | 'active' | 'archived'
+  sort: SortMode
+}
+
 export type ComparisonProfile = {
   username: string
   totalStars: number
@@ -76,6 +166,10 @@ export type ComparisonProfile = {
   averageStars: number
   mostActiveDay: string
   mostActiveDayScore: number
+  popularityScore: number
+  activityScore: number
+  maintenanceScore: number
+  totalScore: number
 }
 
 export type AppStatus =

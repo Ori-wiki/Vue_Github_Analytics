@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
+import OrganizationView from '../views/OrganizationView.vue'
 import RepositoryDetailView from '../views/RepositoryDetailView.vue'
+import { routeNames } from './routes'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -11,17 +13,22 @@ export const router = createRouter({
     },
     {
       path: '/user/:username',
-      name: 'user',
+      name: routeNames.user,
       component: DashboardView,
     },
     {
       path: '/compare/:username/:compareUsername',
-      name: 'compare',
+      name: routeNames.compare,
       component: DashboardView,
     },
     {
+      path: '/org/:org',
+      name: routeNames.organization,
+      component: OrganizationView,
+    },
+    {
       path: '/repositories/:owner/:repo',
-      name: 'repository-detail',
+      name: routeNames.repositoryDetail,
       component: RepositoryDetailView,
     },
   ],

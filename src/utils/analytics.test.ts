@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   filterRepositories,
+  getComparisonProfile,
   getCommitStats,
   getLanguageStats,
   getTotalStars,
@@ -50,6 +51,31 @@ describe('analytics utils', () => {
     ]
 
     expect(getCommitStats(events)).toEqual([{ repo: 'org/app', commits: 2 }])
+  })
+
+  it('builds comparison score metrics', () => {
+    const profile = getComparisonProfile(
+      {
+        login: 'owner',
+        avatar_url: '',
+        html_url: '',
+        name: null,
+        bio: null,
+        company: null,
+        location: null,
+        blog: '',
+        followers: 100,
+        following: 1,
+        public_repos: 3,
+        created_at: '2026-01-01T00:00:00Z',
+      },
+      repositories,
+      [],
+    )
+
+    expect(profile.popularityScore).toBeGreaterThan(0)
+    expect(profile.maintenanceScore).toBeGreaterThan(0)
+    expect(profile.totalScore).toBe(profile.popularityScore + profile.activityScore + profile.maintenanceScore)
   })
 })
 

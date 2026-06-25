@@ -1,29 +1,48 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, Download, SearchX, Signal, WifiOff } from '@lucide/vue'
 import ActivityChart from '../components/charts/ActivityChart.vue'
+import CommandPalette from '../components/CommandPalette.vue'
 import CommitChart from '../components/charts/CommitChart.vue'
+import DashboardSkeleton from '../components/DashboardSkeleton.vue'
+import GithubTokenSetup from '../components/GithubTokenSetup.vue'
 import LanguageChart from '../components/charts/LanguageChart.vue'
 import ProfileHeader from '../components/ProfileHeader.vue'
+import RateLimitIndicator from '../components/RateLimitIndicator.vue'
 import RepositoryTable from '../components/RepositoryTable.vue'
+import SavedProfiles from '../components/SavedProfiles.vue'
 import SearchBar from '../components/SearchBar.vue'
 import StateNotice from '../components/StateNotice.vue'
 import ThemeToggle from '../components/ThemeToggle.vue'
 import UserComparison from '../components/UserComparison.vue'
+import { useExportRepositories } from '../composables/useExportRepositories'
+import { exportJsonFile } from '../utils/exportRepositories'
+import { routeNames } from '../router/routes'
+import { useFavoritesStore } from '../stores/favorites'
 import { useGithubAnalyticsStore } from '../stores/githubAnalytics'
-import { exportRepositoriesAsCsv, exportRepositoriesAsJson } from '../utils/exportRepositories'
+
+type Preset = 'overview' | 'activity' | 'repositories' | 'compare' | 'saved'
+
+const presets: Array<{ id: Preset; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'repositories', label: 'Repositories' },
+  { id: 'compare', label: 'Compare' },
+  { id: 'saved', label: 'Saved' },
+]
 
 const route = useRoute()
 const router = useRouter()
 const store = useGithubAnalyticsStore()
+const favoritesStore = useFavoritesStore()
+const { exportCsv, exportJson } = useExportRepositories()
+const activePreset = ref<Preset>('overview')
 const {
   username,
   compareUsername,
-  search,
-  language,
-  sort,
+  repoFilters,
   user,
   repositories,
   status,
@@ -34,6 +53,8 @@ const {
   dataWarning,
   compareError,
   hasPublicEvents,
+  contributionSource,
+  commitSource,
   totalStars,
   languages,
   languageOptions,
@@ -55,6 +76,7 @@ watch(
 
     if (routeCompareUsername) {
       compareUsername.value = routeCompareUsername
+      activePreset.value = 'compare'
       await store.loadComparison()
     } else {
       store.clearComparison()
@@ -72,7 +94,7 @@ function navigateToUser() {
   const targetUsername = username.value.trim()
 
   if (targetUsername) {
-    void router.push({ name: 'user', params: { username: targetUsername } })
+    void router.push({ name: routeNames.user, params: { username: targetUsername } })
   }
 }
 
@@ -81,11 +103,26 @@ function navigateToCompare() {
   const targetCompareUsername = compareUsername.value.trim()
 
   if (targetUsername && targetCompareUsername) {
+    favoritesStore.addComparePair(targetUsername, targetCompareUsername)
     void router.push({
-      name: 'compare',
+      name: routeNames.compare,
       params: { username: targetUsername, compareUsername: targetCompareUsername },
     })
   }
+}
+
+function exportReport() {
+  exportJsonFile(`${username.value}-github-report.json`, {
+    profile: user.value,
+    repositories: visibleRepositories.value,
+    scores: comparisonProfile.value,
+    charts: {
+      contributions: contributions.value,
+      commits: commits.value,
+      languages: languages.value,
+    },
+    comparison: compareProfile.value,
+  })
 }
 </script>
 
@@ -101,10 +138,11 @@ function navigateToCompare() {
               <p class="text-xs font-semibold text-slate-500">SaaS-style developer intelligence</p>
             </div>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <p class="w-fit rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
               Live GitHub API
             </p>
+            <CommandPalette :current-username="username" :repositories="repositories" />
             <ThemeToggle />
           </div>
         </div>
@@ -122,12 +160,31 @@ function navigateToCompare() {
         </div>
       </header>
 
+      <div class="surface flex flex-wrap gap-2 p-2">
+        <button
+          v-for="preset in presets"
+          :key="preset.id"
+          class="rounded-md px-3 py-2 text-sm font-black transition"
+          :class="activePreset === preset.id ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-50'"
+          type="button"
+          @click="activePreset = preset.id"
+        >
+          {{ preset.label }}
+        </button>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <GithubTokenSetup @saved="store.loadProfile(username)" />
+        <RateLimitIndicator />
+      </div>
+
       <StateNotice
         v-if="status === 'user-not-found'"
         title="Пользователь не найден"
         :description="error"
         :icon="SearchX"
         tone="warning"
+        @retry="store.loadProfile(username)"
       />
 
       <StateNotice
@@ -136,6 +193,7 @@ function navigateToCompare() {
         :description="error"
         :icon="Signal"
         tone="warning"
+        @retry="store.loadProfile(username)"
       />
 
       <StateNotice
@@ -144,6 +202,7 @@ function navigateToCompare() {
         :description="error"
         :icon="WifiOff"
         tone="error"
+        @retry="store.loadProfile(username)"
       />
 
       <StateNotice
@@ -152,6 +211,7 @@ function navigateToCompare() {
         :description="error"
         :icon="AlertTriangle"
         tone="error"
+        @retry="store.loadProfile(username)"
       />
 
       <StateNotice
@@ -160,23 +220,39 @@ function navigateToCompare() {
         :description="dataWarning"
         :icon="Signal"
         tone="warning"
+        @retry="store.loadProfile(username)"
       />
 
-      <div v-if="isLoading && !user" class="surface grid min-h-96 place-items-center">
-        <p class="text-sm font-medium text-slate-500">Loading GitHub profile...</p>
-      </div>
+      <DashboardSkeleton v-if="isLoading && !user" />
 
       <template v-if="user">
-        <ProfileHeader :repositories="repositories.length" :stars="totalStars" :user="user" />
+        <ProfileHeader
+          v-if="activePreset === 'overview' || activePreset === 'saved'"
+          :repositories="repositories.length"
+          :stars="totalStars"
+          :user="user"
+        />
 
-        <section class="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <ActivityChart :contributions="contributions" :events-status="eventsStatus" :has-events="hasPublicEvents" />
+        <SavedProfiles v-if="activePreset === 'overview' || activePreset === 'saved'" :active-username="username" />
+
+        <section v-if="activePreset === 'overview' || activePreset === 'activity'" class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <ActivityChart
+            :contributions="contributions"
+            :events-status="eventsStatus"
+            :has-events="hasPublicEvents"
+            :source="contributionSource"
+          />
           <LanguageChart :languages="languages" />
         </section>
 
-        <section class="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <CommitChart :commits="commits" :events-status="eventsStatus" :has-events="hasPublicEvents" />
-          <div class="flex flex-col gap-3">
+        <section v-if="activePreset === 'overview' || activePreset === 'compare' || activePreset === 'activity'" class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+          <CommitChart
+            :commits="commits"
+            :events-status="eventsStatus"
+            :has-events="hasPublicEvents"
+            :source="commitSource"
+          />
+          <div v-if="activePreset !== 'activity'" class="flex flex-col gap-3">
             <UserComparison
               v-model="compareUsername"
               :base-profile="comparisonProfile"
@@ -189,27 +265,30 @@ function navigateToCompare() {
           </div>
         </section>
 
-        <section class="surface flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section v-if="activePreset === 'overview' || activePreset === 'repositories'" class="surface flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="title-lg">Export repositories</h2>
             <p class="muted mt-1 text-sm">Download the currently visible repository list.</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button class="btn-secondary" @click="exportRepositoriesAsJson(visibleRepositories, username)">
+            <button class="btn-secondary" @click="exportJson(visibleRepositories, username)">
               <Download class="size-4" />
               Export as JSON
             </button>
-            <button class="btn-secondary" @click="exportRepositoriesAsCsv(visibleRepositories, username)">
+            <button class="btn-secondary" @click="exportCsv(visibleRepositories, username)">
               <Download class="size-4" />
               Export as CSV
+            </button>
+            <button class="btn-secondary" @click="exportReport">
+              <Download class="size-4" />
+              Export report
             </button>
           </div>
         </section>
 
         <RepositoryTable
-          v-model:language="language"
-          v-model:search="search"
-          v-model:sort="sort"
+          v-if="activePreset === 'overview' || activePreset === 'repositories'"
+          v-model:filters="repoFilters"
           :languages="languageOptions"
           :repositories="visibleRepositories"
           :repositories-status="repositoriesStatus"

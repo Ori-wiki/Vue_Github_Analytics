@@ -7,6 +7,10 @@ defineProps<{
   icon: Component
   tone?: 'info' | 'warning' | 'error'
 }>()
+
+defineEmits<{
+  retry: []
+}>()
 </script>
 
 <template>
@@ -30,9 +34,15 @@ defineProps<{
         <component :is="icon" class="size-5" />
       </div>
 
-      <div>
+      <div class="flex-1">
         <h2 class="text-base font-bold">{{ title }}</h2>
         <p class="mt-1 text-sm leading-6 opacity-80">{{ description }}</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button class="btn-secondary h-9 px-3" type="button" @click="$emit('retry')">
+            Retry
+          </button>
+          <slot name="actions" />
+        </div>
       </div>
     </div>
   </section>

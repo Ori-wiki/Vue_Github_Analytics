@@ -9,14 +9,17 @@ export function exportRepositoriesAsJson(repositories: GithubRepository[], usern
 }
 
 export function exportRepositoriesAsCsv(repositories: GithubRepository[], username: string) {
+  downloadFile(`${username}-repositories.csv`, createRepositoriesCsv(repositories), 'text/csv')
+}
+
+export function createRepositoriesCsv(repositories: GithubRepository[]) {
   const rows = repositories.map(toExportRow)
   const headers = ['name', 'description', 'language', 'stars', 'forks', 'issues', 'url', 'created_at', 'updated_at']
-  const csv = [
+
+  return [
     headers.join(','),
     ...rows.map((row) => headers.map((header) => escapeCsv(row[header as keyof typeof row])).join(',')),
   ].join('\n')
-
-  downloadFile(`${username}-repositories.csv`, csv, 'text/csv')
 }
 
 function toExportRow(repository: GithubRepository) {
@@ -47,4 +50,8 @@ function downloadFile(filename: string, content: string, type: string) {
   link.download = filename
   link.click()
   URL.revokeObjectURL(url)
+}
+
+export function exportJsonFile(filename: string, data: unknown) {
+  downloadFile(filename, JSON.stringify(data, null, 2), 'application/json')
 }

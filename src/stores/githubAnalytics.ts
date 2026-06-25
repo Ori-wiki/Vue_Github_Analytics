@@ -1,16 +1,30 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { getGithubEvents, getGithubRepositories, getGithubUser } from '../api/github'
-import type { AppStatus, GithubEvent, GithubRepository, GithubUser, SortMode } from '../types/github'
+import { getContributionCalendar, getGithubEvents, getGithubRepositories, getGithubUser } from '../api/github'
+import type {
+  AppStatus,
+  CommitStat,
+  ContributionDay,
+  GithubEvent,
+  GithubRepository,
+  GithubUser,
+  RepoFilters,
+  SortMode,
+} from '../types/github'
 import {
-  filterRepositories,
-  getComparisonProfile,
+  filterRepositoriesAdvanced,
   getCommitStats,
+  getCommitStatsFromGraphql,
+  getComparisonProfile,
+  getContributionsFromGraphql,
   getLanguageStats,
   getRecentContributions,
   getTotalStars,
 } from '../utils/analytics'
 import { getGithubErrorMessage, getGithubErrorStatus, getStatusMessage } from '../utils/githubErrors'
+import { useFavoritesStore } from './favorites'
+
+export type AnalyticsSource = 'graphql' | 'public-events' | 'none'
 
 export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
   const username = ref('vuejs')
@@ -18,12 +32,23 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
   const search = ref('')
   const language = ref('all')
   const sort = ref<SortMode>('stars')
+  const repoFilters = ref<RepoFilters>({
+    search: '',
+    languages: [],
+    minStars: 0,
+    license: 'all',
+    updatedWithinDays: 'all',
+    archived: 'all',
+    sort: 'stars',
+  })
   const user = ref<GithubUser | null>(null)
   const compareUser = ref<GithubUser | null>(null)
   const repositories = ref<GithubRepository[]>([])
   const compareRepositories = ref<GithubRepository[]>([])
   const events = ref<GithubEvent[]>([])
   const compareEvents = ref<GithubEvent[]>([])
+  const graphqlContributions = ref<ContributionDay[]>([])
+  const graphqlCommitStats = ref<CommitStat[]>([])
   const status = ref<AppStatus>('idle')
   const repositoriesStatus = ref<AppStatus>('idle')
   const eventsStatus = ref<AppStatus>('idle')
@@ -32,16 +57,36 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
   const compareEventsStatus = ref<AppStatus>('idle')
   const dataWarning = ref('')
   const compareError = ref('')
+  let profileController: AbortController | null = null
+  let comparisonController: AbortController | null = null
 
   const isLoading = computed(() => status.value === 'loading')
   const error = computed(() => getStatusMessage(status.value))
   const hasRepositories = computed(() => repositories.value.length > 0)
-  const hasPublicEvents = computed(() => events.value.length > 0)
+  const contributionSource = computed<AnalyticsSource>(() => {
+    if (graphqlContributions.value.length) {
+      return 'graphql'
+    }
+
+    return events.value.length ? 'public-events' : 'none'
+  })
+  const commitSource = computed<AnalyticsSource>(() => {
+    if (graphqlCommitStats.value.length) {
+      return 'graphql'
+    }
+
+    return events.value.length ? 'public-events' : 'none'
+  })
+  const hasPublicEvents = computed(() => contributionSource.value !== 'none')
   const totalStars = computed(() => getTotalStars(repositories.value))
   const languages = computed(() => getLanguageStats(repositories.value))
   const languageOptions = computed(() => languages.value.map((item) => item.name))
-  const contributions = computed(() => getRecentContributions(events.value))
-  const commits = computed(() => getCommitStats(events.value))
+  const contributions = computed(() =>
+    graphqlContributions.value.length ? graphqlContributions.value : getRecentContributions(events.value),
+  )
+  const commits = computed(() =>
+    graphqlCommitStats.value.length ? graphqlCommitStats.value : getCommitStats(events.value),
+  )
   const comparisonProfile = computed(() =>
     user.value ? getComparisonProfile(user.value, repositories.value, events.value) : null,
   )
@@ -50,9 +95,7 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       ? getComparisonProfile(compareUser.value, compareRepositories.value, compareEvents.value)
       : null,
   )
-  const visibleRepositories = computed(() =>
-    filterRepositories(repositories.value, search.value, language.value, sort.value),
-  )
+  const visibleRepositories = computed(() => filterRepositoriesAdvanced(repositories.value, repoFilters.value))
 
   async function loadProfile(targetUsername = username.value) {
     const normalizedUsername = targetUsername.trim()
@@ -62,20 +105,33 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       return
     }
 
+    profileController?.abort()
+    profileController = new AbortController()
+    const signal = profileController.signal
+
     status.value = 'loading'
     repositoriesStatus.value = 'idle'
     eventsStatus.value = 'idle'
     dataWarning.value = ''
+    graphqlContributions.value = []
+    graphqlCommitStats.value = []
 
     try {
-      const profile = await getGithubUser(normalizedUsername)
+      const profile = await getGithubUser(normalizedUsername, { signal })
 
       username.value = normalizedUsername
       user.value = profile
       search.value = ''
       language.value = 'all'
+      repoFilters.value.search = ''
+      repoFilters.value.languages = []
       status.value = 'ready'
+      useFavoritesStore().addRecent(normalizedUsername)
     } catch (unknownError) {
+      if (signal.aborted) {
+        return
+      }
+
       status.value = getGithubErrorStatus(unknownError)
       dataWarning.value = getGithubErrorMessage(unknownError)
       user.value = null
@@ -86,10 +142,15 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
       return
     }
 
-    const [reposResult, eventsResult] = await Promise.allSettled([
-      getGithubRepositories(normalizedUsername),
-      getGithubEvents(normalizedUsername),
+    const [reposResult, eventsResult, graphqlResult] = await Promise.allSettled([
+      getGithubRepositories(normalizedUsername, { signal }),
+      getGithubEvents(normalizedUsername, { signal }),
+      getContributionCalendar(normalizedUsername, { signal }),
     ])
+
+    if (signal.aborted) {
+      return
+    }
 
     if (reposResult.status === 'fulfilled') {
       repositories.value = reposResult.value
@@ -113,20 +174,24 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
         dataWarning.value ||
         getGithubErrorMessage(eventsResult.reason, 'Профиль загружен, но public events временно недоступны.')
     }
+
+    if (graphqlResult.status === 'fulfilled' && graphqlResult.value) {
+      graphqlContributions.value = getContributionsFromGraphql(graphqlResult.value.days)
+      graphqlCommitStats.value = getCommitStatsFromGraphql(graphqlResult.value.commitRepositories)
+    }
   }
 
   async function loadComparison() {
     const normalizedUsername = compareUsername.value.trim()
 
     if (!normalizedUsername) {
-      compareUser.value = null
-      compareRepositories.value = []
-      compareEvents.value = []
-      compareError.value = ''
-      compareRepositoriesStatus.value = 'idle'
-      compareEventsStatus.value = 'idle'
+      clearComparison()
       return
     }
+
+    comparisonController?.abort()
+    comparisonController = new AbortController()
+    const signal = comparisonController.signal
 
     compareError.value = ''
     compareStatus.value = 'loading'
@@ -134,12 +199,16 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     compareEventsStatus.value = 'idle'
 
     try {
-      const profile = await getGithubUser(normalizedUsername)
+      const profile = await getGithubUser(normalizedUsername, { signal })
 
       compareUsername.value = normalizedUsername
       compareUser.value = profile
       compareStatus.value = 'ready'
     } catch (unknownError) {
+      if (signal.aborted) {
+        return
+      }
+
       compareStatus.value = getGithubErrorStatus(unknownError)
       compareUser.value = null
       compareRepositories.value = []
@@ -149,9 +218,13 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     }
 
     const [reposResult, eventsResult] = await Promise.allSettled([
-      getGithubRepositories(normalizedUsername),
-      getGithubEvents(normalizedUsername),
+      getGithubRepositories(normalizedUsername, { signal }),
+      getGithubEvents(normalizedUsername, { signal }),
     ])
+
+    if (signal.aborted) {
+      return
+    }
 
     if (reposResult.status === 'fulfilled') {
       compareRepositories.value = reposResult.value
@@ -197,12 +270,15 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     search,
     language,
     sort,
+    repoFilters,
     user,
     compareUser,
     repositories,
     compareRepositories,
     events,
     compareEvents,
+    graphqlContributions,
+    graphqlCommitStats,
     status,
     repositoriesStatus,
     eventsStatus,
@@ -215,6 +291,8 @@ export const useGithubAnalyticsStore = defineStore('githubAnalytics', () => {
     compareError,
     hasRepositories,
     hasPublicEvents,
+    contributionSource,
+    commitSource,
     totalStars,
     languages,
     languageOptions,
